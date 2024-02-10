@@ -6,18 +6,20 @@
     clippy::wildcard_enum_match_arm,
     clippy::else_if_without_else
 )]
-mod document;
-mod editor;
-mod row;
-mod terminal;
+mod gui;
+use gui::Gui;
+use gui::termion::Termion;
 
-pub use document::Document;
-use editor::Editor;
-pub use editor::Position;
-pub use row::Row;
-pub use terminal::Terminal;
+mod document;
+mod row;
+mod editor;
+
+use editor::Position;
+use row::Row;
 
 fn main() {
-    let mut editor = Editor::default();
+    let termion = Box::new(Termion::default().expect("failes"));
+    termion.screen().clear_screen();
+    let mut editor = editor::Editor::default(termion);
     editor.run();
 }

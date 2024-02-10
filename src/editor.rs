@@ -1,12 +1,22 @@
-use crate::{Document, Row, Terminal};
-use std::time::Duration;
-use std::time::Instant;
-use termion::color;
-use termion::event::Key;
+use crate::{document::Document, gui::gui::{self, Key}, row::Row, Gui};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
-const STATUS_BAR_FGCOLOR: color::Rgb = color::Rgb(63, 63, 63);
-const STATUS_BAR_BGCOLOR: color::Rgb = color::Rgb(239, 239, 239);
+
+const STATUS_BAR_FGCOLOR: gui::Rgb = gui::Rgb {
+    red: 63,
+    green: 63,
+    blue: 63,
+};
+const STATUS_BAR_BGCOLOR: gui::Rgb = gui::Rgb {
+    red: 239,
+    green: 239,
+    blue: 239,
+};
+
+struct StatusMessage {
+    text: String,
+    time: std::time::Instant,
+}
 
 #[derive(Default)]
 pub struct Position {
@@ -14,23 +24,18 @@ pub struct Position {
     pub y: usize,
 }
 
-struct StatusMessage {
-    text: String,
-    time: Instant,
-}
-
 impl From<String> for StatusMessage {
     fn from(text: String) -> Self {
         Self {
             text: text.to_string(),
-            time: Instant::now(),
+            time: std::time::Instant::now(),
         }
     }
 }
 
 pub struct Editor {
     should_quit: bool,
-    terminal: Terminal,
+    gui: Box<dyn Gui>,
     cursor_position: Position,
     document: Document,
     offset: Position,
@@ -38,7 +43,11 @@ pub struct Editor {
 }
 
 impl Editor {
-    pub fn default() -> Self {
+    fn die(&self, e: &std::io::Error) {
+        self.gui.screen().clear_screen();
+        panic!("{}", e);
+    }
+    pub fn default(gui: Box<dyn Gui>) -> Self {
         let args: Vec<String> = std::env::args().collect();
         let mut initial_status = String::from("HELP: Ctrl-s = save | Ctrl-q = quit");
         let document = if args.len() > 1 {
@@ -54,47 +63,50 @@ impl Editor {
         };
         Editor {
             should_quit: false,
-            terminal: Terminal::default().expect("Failed to initialize terminal"),
+            gui: gui,
             cursor_position: Position::default(),
             document: document,
             offset: Position::default(),
             status_message: StatusMessage::from(initial_status),
         }
     }
+
     pub fn run(&mut self) {
         loop {
             if let Err(e) = self.refresh_screen() {
-                die(&e);
+                self.die(&e);
             }
             if self.should_quit {
                 break;
             }
             if let Err(e) = self.process_keypress() {
-                die(&e);
+                self.die(&e);
             }
         }
     }
+
     fn refresh_screen(&self) -> Result<(), std::io::Error> {
-        Terminal::cursor_hide();
-        Terminal::clear_screen();
-        Terminal::cursor_position(&Position::default());
+        self.gui.cursor().hide();
+        self.gui.screen().clear_screen();
+        self.gui.cursor().goto(0, 0);
         if self.should_quit {
-            Terminal::clear_screen();
+            self.gui.screen().clear_screen();
             println!("Goodbye.\r");
         } else {
-            self.draw_rows();
-            self.draw_status_bar();
-            self.draw_message_bar();
-            Terminal::cursor_position(&Position {
-                x: self.cursor_position.x.saturating_sub(self.offset.x),
-                y: self.cursor_position.y.saturating_sub(self.offset.y),
-            });
+            self.draw_rows(); // Crate
+            self.draw_status_bar(); // Crate
+            self.draw_message_bar(); // Crate
+            self.gui.cursor().goto(
+                self.cursor_position.x.saturating_sub(self.offset.x),
+                self.cursor_position.y.saturating_sub(self.offset.y),
+            );
         }
-        Terminal::cursor_show();
-        Terminal::flush()
+        self.gui.cursor().show();
+        self.gui.screen().flush()
     }
+
     fn draw_status_bar(&self) {
-        let width = self.terminal.size().width as usize;
+        let width = self.gui.screen().size().width as usize;
         let modified_indicator = if self.document.is_dirty() {
             "(modified)"
         } else {
@@ -124,43 +136,46 @@ impl Editor {
         }
         status = format!("{}{}", status, line_indicator);
         status.truncate(width);
-        Terminal::set_bg_color(STATUS_BAR_BGCOLOR);
-        Terminal::set_fg_color(STATUS_BAR_FGCOLOR);
+        self.gui.color().set_bg_color(STATUS_BAR_BGCOLOR);
+        self.gui.color().set_fg_color(STATUS_BAR_FGCOLOR);
         println!("{status}\r");
-        Terminal::reset_bg_color();
-        Terminal::reset_fg_color();
+        self.gui.color().reset_bg_color();
+        self.gui.color().reset_fg_color();
     }
+
     fn draw_message_bar(&self) {
-        Terminal::clear_current_line();
+        self.gui.screen().clear_current_line();
         let message = &self.status_message;
-        if Instant::now() - message.time < Duration::new(5, 0) {
+        if std::time::Instant::now() - message.time < std::time::Duration::new(5, 0) {
             let mut text = message.text.clone();
-            text.truncate(self.terminal.size().width as usize);
-            print!("{}", text);
+            text.truncate(self.gui.screen().size().width as usize);
+            print!("{text}");
         }
     }
+
     fn draw_welcome_message(&self) {
         let mut welcome_message = format!("Hecto editor -- version {}", VERSION);
-        let width = self.terminal.size().width as usize;
+        let width = self.gui.screen().size().width as usize;
         let len = welcome_message.len();
         let padding = width.saturating_sub(len) / 2;
         let spaces = " ".repeat(padding.saturating_sub(1));
         welcome_message.truncate(width);
         welcome_message = format!("~{}{}", spaces, welcome_message);
-        println!("{}\r", welcome_message);
+        println!("{}\r", welcome_message); // TODO: use gui print
     }
 
     fn draw_raw(&self, row: &Row) {
-        let width = self.terminal.size().width as usize;
+        let width = self.gui.screen().size().width as usize;
         let start = self.offset.x;
         let end = self.offset.x + width;
         let row = row.render(start, end);
         println!("{}\r", row);
     }
+
     fn draw_rows(&self) {
-        let height = self.terminal.size().height;
+        let height = self.gui.screen().size().height;
         for terminal_row in 0..height {
-            Terminal::clear_current_line();
+            self.gui.screen().clear_current_line();
             if let Some(row) = self.document.row(terminal_row as usize + self.offset.y) {
                 self.draw_raw(row);
             } else if self.document.is_empty() && terminal_row == height / 3 {
@@ -171,10 +186,11 @@ impl Editor {
             }
         }
     }
+
     fn scroll(&mut self) {
         let Position { x, y } = self.cursor_position;
-        let width = self.terminal.size().width as usize;
-        let height = self.terminal.size().height as usize;
+        let width = self.gui.screen().size().width as usize;
+        let height = self.gui.screen().size().height as usize;
 
         if y < self.offset.y {
             self.offset.y = y;
@@ -187,9 +203,10 @@ impl Editor {
         } else if x >= self.offset.x + width {
             self.offset.x = x.saturating_sub(width).saturating_add(1);
         }
-    }
+    }    
+
     fn move_cursor(&mut self, key: Key) {
-        let terminal_height = self.terminal.size().height as usize;
+        let terminal_height = self.gui.screen().size().height as usize;
         let Position { mut y, mut x } = self.cursor_position;
         let height = self.document.len();
         let width = self.row_width(y);
@@ -231,6 +248,7 @@ impl Editor {
         }
         self.cursor_position = Position { x, y };
     }
+
     fn save(&mut self) {
         if self.document.filename.is_none() {
             let new_name = self.prompt("Save as: ").unwrap_or(None);
@@ -246,6 +264,7 @@ impl Editor {
             self.status_message = StatusMessage::from("Error saving file".to_string());
         }
     }
+
     fn row_width(&self, index: usize) -> usize {
         if let Some(row) = self.document.row(index) {
             row.len()
@@ -253,12 +272,13 @@ impl Editor {
             0
         }
     }
+
     fn prompt(&mut self, prompt: &str) -> Result<Option<String>, std::io::Error> {
         let mut result = String::new();
         loop {
             self.status_message = StatusMessage::from(format!("{}{}", prompt, result));
             self.refresh_screen()?;
-            match Terminal::read_key()? {
+            match self.gui.keyboard().read_key()? {
                 Key::Backspace => {
                     if !result.is_empty() {
                         result.truncate(result.len() - 1);
@@ -284,8 +304,9 @@ impl Editor {
             Ok(Some(result))
         }
     }
+
     fn process_keypress(&mut self) -> Result<(), std::io::Error> {
-        let pressed_key = Terminal::read_key()?;
+        let pressed_key = self.gui.keyboard().read_key()?;
         match pressed_key {
             Key::Ctrl('q') => self.should_quit = true,
             Key::Ctrl('s') => self.save(),
@@ -315,13 +336,5 @@ impl Editor {
         self.scroll();
         Ok(())
     }
-}
 
-fn die(e: &std::io::Error) {
-    Terminal::clear_screen();
-    panic!("{}", e);
-}
-
-fn print_char(c: char) {
-    println!("{:?} {:#b} ({})\r", c as u8, c as u8, c);
 }
