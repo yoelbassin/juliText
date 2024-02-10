@@ -45,7 +45,7 @@ pub enum Key {
     Null,
     /// Esc key.
     Esc,
-    __IsNotComplete
+    __IsNotComplete,
 }
 
 #[derive(Default)]
@@ -84,7 +84,9 @@ pub trait Keyboard {
 }
 
 pub trait Gui {
-    fn default() -> Result<Self, std::io::Error> where Self: Sized;
+    fn default() -> Result<Self, std::io::Error>
+    where
+        Self: Sized;
     fn cursor(&self) -> &Box<dyn Cursor>;
     fn color(&self) -> &Box<dyn Color>;
     fn screen(&self) -> &Box<dyn Screen>;

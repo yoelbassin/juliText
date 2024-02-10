@@ -1,8 +1,8 @@
 use crate::gui::gui;
 
-pub struct TermionCursor {}
+pub struct Termion {}
 
-impl gui::Cursor for TermionCursor {
+impl gui::Cursor for Termion {
     fn hide(&self) {
         print!("{}", termion::cursor::Hide);
     }

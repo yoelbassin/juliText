@@ -2,9 +2,9 @@ use termion::{event::Key, input::TermRead};
 
 use crate::gui::gui;
 
-pub struct TermionKeyboard {}
+pub struct Termion {}
 
-impl gui::Keyboard for TermionKeyboard {
+impl gui::Keyboard for Termion {
     fn read_key(&self) -> Result<gui::Key, std::io::Error> {
         loop {
             if let Some(key) = std::io::stdin().lock().keys().next() {
@@ -28,8 +28,7 @@ impl gui::Keyboard for TermionKeyboard {
                     Key::Ctrl(x) => gui::Key::Ctrl(x),
                     Key::Null => gui::Key::Null,
                     Key::Esc => gui::Key::Esc,
-                    Key::__IsNotComplete => gui::Key::__IsNotComplete
-
+                    Key::__IsNotComplete => gui::Key::__IsNotComplete,
                 };
                 return Ok(key);
             }

@@ -2,11 +2,11 @@ use std::io::Write;
 
 use crate::gui::gui;
 
-pub struct TermionScreen {
+pub struct Termion {
     size: gui::Size,
 }
 
-impl gui::Screen for TermionScreen {
+impl gui::Screen for Termion {
     fn size(&self) -> &gui::Size {
         &self.size
     }
@@ -21,7 +21,7 @@ impl gui::Screen for TermionScreen {
     }
 }
 
-impl TermionScreen {
+impl Termion {
     pub fn default() -> Result<Self, std::io::Error> {
         let size = termion::terminal_size()?;
         Ok(Self {
@@ -31,5 +31,4 @@ impl TermionScreen {
             },
         })
     }
-
 }
