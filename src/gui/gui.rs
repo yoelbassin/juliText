@@ -77,6 +77,8 @@ pub trait Screen {
     fn clear_screen(&self);
     fn flush(&self) -> Result<(), std::io::Error>;
     fn clear_current_line(&self);
+    fn cursor(&self) -> &Box<dyn Cursor>;
+    fn color(&self) -> &Box<dyn Color>;
 }
 
 pub trait Keyboard {
@@ -87,8 +89,6 @@ pub trait Gui {
     fn default() -> Result<Self, std::io::Error>
     where
         Self: Sized;
-    fn cursor(&self) -> &Box<dyn Cursor>;
-    fn color(&self) -> &Box<dyn Color>;
     fn screen(&self) -> &Box<dyn Screen>;
     fn keyboard(&self) -> &Box<dyn Keyboard>;
 }
