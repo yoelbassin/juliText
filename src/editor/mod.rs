@@ -1,4 +1,2 @@
-use crate::document;
-mod status_bar;
-
-pub use document::Document;
+pub mod status_bar;
+pub mod editor;

@@ -7,19 +7,18 @@
     clippy::else_if_without_else
 )]
 mod gui;
-use gui::Gui;
 use gui::termion::Termion;
-
-mod document;
-mod row;
+use gui::Gui;
 mod editor;
+// pub mod document;
+// mod row;
 
-use editor::Position;
-use row::Row;
+// use editor::Position;
+// use row::Row;
 
 fn main() {
     let termion = Box::new(Termion::default().expect("failes"));
     termion.screen().clear_screen();
-    let mut editor = editor::Editor::default(termion);
-    editor.run();
+    // let mut editor = editorm::Editor::default(termion);
+    // editor.run();
 }
